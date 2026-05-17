@@ -1,0 +1,201 @@
+name: Build vLLM Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      cuda_version:
+        description: "CUDA version (e.g. 13.0.2, 12.9.1)"
+        required: false
+        default: "13.0.2"
+      torch_cuda_arch_list:
+        description: "CUDA architectures to compile for (space-separated)"
+        required: false
+        default: "8.6"
+      max_jobs:
+        description: "Parallel ninja build jobs"
+        required: false
+        default: "8"
+      nvcc_threads:
+        description: "NVCC thread count"
+        required: false
+        default: "4"
+      docker_target:
+        description: "Docker build target (vllm-openai, test, dev)"
+        required: false
+        default: "vllm-openai"
+      install_kv_connectors:
+        description: "Install KV connector dependencies (true/false)"
+        required: false
+        default: "true"
+      ubuntu_version:
+        description: "Ubuntu version for final image (22.04 or 24.04)"
+        required: false
+        default: "22.04"
+      extra_build_args:
+        description: "Additional --build-arg lines (one per line)"
+        required: false
+        default: ""
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: rezusnet/vllm-openai
+
+jobs:
+  build:
+    name: Build vLLM CUDA Image (x86_64)
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build configuration
+        id: config
+        run: |
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "trigger=auto" >> "$GITHUB_OUTPUT"
+            echo "cuda_version=13.0.2" >> "$GITHUB_OUTPUT"
+            echo "torch_cuda_arch_list=8.6" >> "$GITHUB_OUTPUT"
+            echo "max_jobs=8" >> "$GITHUB_OUTPUT"
+            echo "nvcc_threads=4" >> "$GITHUB_OUTPUT"
+            echo "docker_target=vllm-openai" >> "$GITHUB_OUTPUT"
+            echo "install_kv_connectors=true" >> "$GITHUB_OUTPUT"
+            echo "ubuntu_version=22.04" >> "$GITHUB_OUTPUT"
+          else
+            echo "trigger=manual" >> "$GITHUB_OUTPUT"
+            echo "cuda_version=${{ inputs.cuda_version }}" >> "$GITHUB_OUTPUT"
+            echo "torch_cuda_arch_list=${{ inputs.torch_cuda_arch_list }}" >> "$GITHUB_OUTPUT"
+            echo "max_jobs=${{ inputs.max_jobs }}" >> "$GITHUB_OUTPUT"
+            echo "nvcc_threads=${{ inputs.nvcc_threads }}" >> "$GITHUB_OUTPUT"
+            echo "docker_target=${{ inputs.docker_target }}" >> "$GITHUB_OUTPUT"
+            echo "install_kv_connectors=${{ inputs.install_kv_connectors }}" >> "$GITHUB_OUTPUT"
+            echo "ubuntu_version=${{ inputs.ubuntu_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate image tags
+        id: meta
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          SHA="${{ steps.config.outputs.short_sha }}"
+          TRIGGER="${{ steps.config.outputs.trigger }}"
+
+          if [[ "$TRIGGER" == "auto" ]]; then
+            TAGS="${IMAGE}:nightly,${IMAGE}:nightly-${SHA},${IMAGE}:${SHA}"
+          else
+            TAGS="${IMAGE}:manual-${SHA},${IMAGE}:latest"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Tags: ${TAGS}"
+
+      - name: Resolve base image
+        id: base
+        run: |
+          CUDA_VER="${{ steps.config.outputs.cuda_version }}"
+          UBUNTU_VER="${{ steps.config.outputs.ubuntu_version }}"
+
+          BUILD_BASE="nvidia/cuda:${CUDA_VER}-devel-ubuntu${UBUNTU_VER}"
+
+          echo "build_base_image=${BUILD_BASE}" >> "$GITHUB_OUTPUT"
+          echo "Build base image: ${BUILD_BASE}"
+
+      - name: Resolve extra build args
+        id: extra
+        run: |
+          ARGS=""
+          if [[ "${{ steps.config.outputs.install_kv_connectors }}" == "true" ]]; then
+            ARGS="--build-arg INSTALL_KV_CONNECTORS=true"
+          fi
+
+          UBUNTU_VER="${{ steps.config.outputs.ubuntu_version }}"
+          if [[ "$UBUNTU_VER" == "24.04" ]]; then
+            ARGS="${ARGS} --build-arg UBUNTU_VERSION=24.04 --build-arg GDRCOPY_OS_VERSION=Ubuntu24_04"
+          fi
+
+          INPUT_EXTRA="${{ inputs.extra_build_args || '' }}"
+          if [[ -n "$INPUT_EXTRA" ]]; then
+            while IFS= read -r line; do
+              [[ -n "$line" ]] && ARGS="${ARGS} --build-arg ${line}"
+            done <<< "$INPUT_EXTRA"
+          fi
+
+          echo "args=${ARGS}" >> "$GITHUB_OUTPUT"
+          echo "Extra build args: ${ARGS}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.config.outputs.short_sha }}"
+
+          echo "========================================"
+          echo "vLLM Fork Image Build"
+          echo "========================================"
+          echo "  Commit:   ${{ steps.config.outputs.commit_sha }}"
+          echo "  Trigger:  ${{ steps.config.outputs.trigger }}"
+          echo "  CUDA:     ${{ steps.config.outputs.cuda_version }}"
+          echo "  Arch:     ${{ steps.config.outputs.torch_cuda_arch_list }}"
+          echo "  Target:   ${{ steps.config.outputs.docker_target }}"
+          echo "  Jobs:     ${{ steps.config.outputs.max_jobs }}"
+          echo "  Ubuntu:   ${{ steps.config.outputs.ubuntu_version }}"
+          echo "========================================"
+
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg max_jobs="${{ steps.config.outputs.max_jobs }}" \
+            --build-arg nvcc_threads="${{ steps.config.outputs.nvcc_threads }}" \
+            --build-arg CUDA_VERSION="${{ steps.config.outputs.cuda_version }}" \
+            --build-arg torch_cuda_arch_list="${{ steps.config.outputs.torch_cuda_arch_list }}" \
+            --build-arg GIT_REPO_CHECK=1 \
+            --build-arg VLLM_BUILD_COMMIT="${{ steps.config.outputs.commit_sha }}" \
+            --build-arg VLLM_BUILD_PIPELINE=gha-fork \
+            --build-arg VLLM_BUILD_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --build-arg VLLM_IMAGE_TAG="${IMAGE_TAG}" \
+            --build-arg BUILD_BASE_IMAGE="${{ steps.base.outputs.build_base_image }}" \
+            ${{ steps.extra.outputs.args }} \
+            --target "${{ steps.config.outputs.docker_target }}" \
+            --tag "${IMAGE_TAG}" \
+            --progress plain \
+            -f docker/Dockerfile \
+            .
+
+          echo "Build complete. Tagging and pushing..."
+
+          IFS=',' read -ra TAG_LIST <<< "${{ steps.meta.outputs.tags }}"
+          for tag in "${TAG_LIST[@]}"; do
+            if [[ "$tag" != "${IMAGE_TAG}" ]]; then
+              docker tag "${IMAGE_TAG}" "$tag"
+            fi
+          done
+
+          for tag in "${TAG_LIST[@]}"; do
+            echo "Pushing $tag"
+            docker push "$tag"
+          done
+
+          echo "All tags pushed successfully."
+
+      - name: Print image info
+        if: always()
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.config.outputs.short_sha }}"
+          echo "Image: ${IMAGE}"
+          docker inspect "${IMAGE}" --format '{{.Id}}' 2>/dev/null || echo "Image not available locally (may have been cleaned up)"
