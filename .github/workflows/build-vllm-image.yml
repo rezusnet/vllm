@@ -1,8 +1,6 @@
 name: Build vLLM Image
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       cuda_version:
@@ -45,7 +43,7 @@ env:
 jobs:
   build:
     name: Build vLLM CUDA Image (x86_64)
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, X64, gpu]
     timeout-minutes: 360
     permissions:
       contents: read
@@ -64,44 +62,23 @@ jobs:
           {
             echo "commit_sha=${COMMIT_SHA}"
             echo "short_sha=${SHORT_SHA}"
+            echo "trigger=manual"
+            echo "cuda_version=${{ inputs.cuda_version }}"
+            echo "torch_cuda_arch_list=${{ inputs.torch_cuda_arch_list }}"
+            echo "max_jobs=${{ inputs.max_jobs }}"
+            echo "nvcc_threads=${{ inputs.nvcc_threads }}"
+            echo "docker_target=${{ inputs.docker_target }}"
+            echo "install_kv_connectors=${{ inputs.install_kv_connectors }}"
+            echo "ubuntu_version=${{ inputs.ubuntu_version }}"
           } >> "$GITHUB_OUTPUT"
-
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            {
-              echo "trigger=auto"
-              echo "cuda_version=13.0.2"
-              echo "torch_cuda_arch_list=8.6"
-              echo "max_jobs=16"
-              echo "nvcc_threads=8"
-              echo "docker_target=vllm-openai"
-              echo "install_kv_connectors=true"
-              echo "ubuntu_version=22.04"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "trigger=manual"
-              echo "cuda_version=${{ inputs.cuda_version }}"
-              echo "torch_cuda_arch_list=${{ inputs.torch_cuda_arch_list }}"
-              echo "max_jobs=${{ inputs.max_jobs }}"
-              echo "nvcc_threads=${{ inputs.nvcc_threads }}"
-              echo "docker_target=${{ inputs.docker_target }}"
-              echo "install_kv_connectors=${{ inputs.install_kv_connectors }}"
-              echo "ubuntu_version=${{ inputs.ubuntu_version }}"
-            } >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Generate image tags
         id: meta
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           SHA="${{ steps.config.outputs.short_sha }}"
-          TRIGGER="${{ steps.config.outputs.trigger }}"
 
-          if [[ "$TRIGGER" == "auto" ]]; then
-            TAGS="${IMAGE}:nightly,${IMAGE}:nightly-${SHA},${IMAGE}:${SHA}"
-          else
-            TAGS="${IMAGE}:manual-${SHA},${IMAGE}:latest"
-          fi
+          TAGS="${IMAGE}:manual-${SHA},${IMAGE}:latest"
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "Tags: ${TAGS}"
