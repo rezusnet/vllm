@@ -12,13 +12,13 @@ on:
         required: false
         default: "8.6"
       max_jobs:
-        description: "Parallel ninja build jobs"
+        description: "Parallel ninja build jobs (MAX_JOBS env var)"
         required: false
-        default: "16"
+        default: "32"
       nvcc_threads:
-        description: "NVCC thread count"
+        description: "NVCC thread count (set to 1 to avoid dividing max_jobs)"
         required: false
-        default: "4"
+        default: "1"
       docker_target:
         description: "Docker build target (vllm-openai, test, dev)"
         required: false
