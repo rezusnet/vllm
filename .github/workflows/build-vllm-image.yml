@@ -166,6 +166,7 @@ jobs:
           echo "========================================"
 
           DOCKER_BUILDKIT=1 docker build \
+            --network=host \
             --build-arg max_jobs="${{ steps.config.outputs.max_jobs }}" \
             --build-arg nvcc_threads="${{ steps.config.outputs.nvcc_threads }}" \
             --build-arg CUDA_VERSION="${{ steps.config.outputs.cuda_version }}" \
