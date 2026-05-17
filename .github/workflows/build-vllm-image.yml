@@ -61,27 +61,33 @@ jobs:
         run: |
           COMMIT_SHA="$(git rev-parse HEAD)"
           SHORT_SHA="$(git rev-parse --short HEAD)"
-          echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          {
+            echo "commit_sha=${COMMIT_SHA}"
+            echo "short_sha=${SHORT_SHA}"
+          } >> "$GITHUB_OUTPUT"
 
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "trigger=auto" >> "$GITHUB_OUTPUT"
-            echo "cuda_version=13.0.2" >> "$GITHUB_OUTPUT"
-            echo "torch_cuda_arch_list=8.6" >> "$GITHUB_OUTPUT"
-            echo "max_jobs=8" >> "$GITHUB_OUTPUT"
-            echo "nvcc_threads=4" >> "$GITHUB_OUTPUT"
-            echo "docker_target=vllm-openai" >> "$GITHUB_OUTPUT"
-            echo "install_kv_connectors=true" >> "$GITHUB_OUTPUT"
-            echo "ubuntu_version=22.04" >> "$GITHUB_OUTPUT"
+            {
+              echo "trigger=auto"
+              echo "cuda_version=13.0.2"
+              echo "torch_cuda_arch_list=8.6"
+              echo "max_jobs=8"
+              echo "nvcc_threads=4"
+              echo "docker_target=vllm-openai"
+              echo "install_kv_connectors=true"
+              echo "ubuntu_version=22.04"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "trigger=manual" >> "$GITHUB_OUTPUT"
-            echo "cuda_version=${{ inputs.cuda_version }}" >> "$GITHUB_OUTPUT"
-            echo "torch_cuda_arch_list=${{ inputs.torch_cuda_arch_list }}" >> "$GITHUB_OUTPUT"
-            echo "max_jobs=${{ inputs.max_jobs }}" >> "$GITHUB_OUTPUT"
-            echo "nvcc_threads=${{ inputs.nvcc_threads }}" >> "$GITHUB_OUTPUT"
-            echo "docker_target=${{ inputs.docker_target }}" >> "$GITHUB_OUTPUT"
-            echo "install_kv_connectors=${{ inputs.install_kv_connectors }}" >> "$GITHUB_OUTPUT"
-            echo "ubuntu_version=${{ inputs.ubuntu_version }}" >> "$GITHUB_OUTPUT"
+            {
+              echo "trigger=manual"
+              echo "cuda_version=${{ inputs.cuda_version }}"
+              echo "torch_cuda_arch_list=${{ inputs.torch_cuda_arch_list }}"
+              echo "max_jobs=${{ inputs.max_jobs }}"
+              echo "nvcc_threads=${{ inputs.nvcc_threads }}"
+              echo "docker_target=${{ inputs.docker_target }}"
+              echo "install_kv_connectors=${{ inputs.install_kv_connectors }}"
+              echo "ubuntu_version=${{ inputs.ubuntu_version }}"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate image tags

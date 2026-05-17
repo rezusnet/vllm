@@ -37,8 +37,10 @@ jobs:
           SHORT_SHA="$(git rev-parse --short HEAD)"
           BRANCH_NAME="${GITHUB_REF_NAME:-manual}"
 
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "branch_name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+          {
+            echo "short_sha=${SHORT_SHA}"
+            echo "branch_name=${BRANCH_NAME}"
+          } >> "$GITHUB_OUTPUT"
 
           BASE="${{ inputs.base_image || 'vllm/vllm-openai:nightly' }}"
           echo "base_image=${BASE}" >> "$GITHUB_OUTPUT"
