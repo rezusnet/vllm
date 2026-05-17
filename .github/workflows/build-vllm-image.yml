@@ -16,7 +16,7 @@ on:
       max_jobs:
         description: "Parallel ninja build jobs"
         required: false
-        default: "8"
+        default: "16"
       nvcc_threads:
         description: "NVCC thread count"
         required: false
@@ -46,7 +46,7 @@ jobs:
   build:
     name: Build vLLM CUDA Image (x86_64)
     runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 180
+    timeout-minutes: 360
     permissions:
       contents: read
       packages: write
@@ -71,8 +71,8 @@ jobs:
               echo "trigger=auto"
               echo "cuda_version=13.0.2"
               echo "torch_cuda_arch_list=8.6"
-              echo "max_jobs=8"
-              echo "nvcc_threads=4"
+              echo "max_jobs=16"
+              echo "nvcc_threads=8"
               echo "docker_target=vllm-openai"
               echo "install_kv_connectors=true"
               echo "ubuntu_version=22.04"
